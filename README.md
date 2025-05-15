@@ -153,7 +153,6 @@ cor.test(red_wine$alcohol, red_wine$quality)
     ##       cor 
     ## 0.4761663
 
-    ![Alcohol vs Quality](images/alcohol_vs_quality.png) 
 
 This analysis explores whether alcohol content is associated with higher wine quality. The scatter plot shows a positive trend, and the linear regression line reinforces that higher alcohol levels may be linked to better quality ratings.
 
@@ -309,3 +308,25 @@ Sulphates help preserve wine and can affect its aroma. We predicted that higher 
 For a wine producer, these insights provide **actionable direction**: - Consider optimizing **alcohol content** to improve ratings. - Monitor and reduce **volatile acidity** to avoid spoilage or sourness. - Maintain healthy sulphate levels to preserve and improve taste — but don’t overdo it.
 
 This project shows how data science and statistical thinking can translate into real-world decisions — even in something as subjective as wine tasting.
+
+## 📊 Visualizations & Key Insights
+
+### 1. Alcohol vs Wine Quality
+![Alcohol vs Quality](images/alcohol_vs_quality.png)
+
+Higher alcohol content is clearly associated with higher quality scores. The trend is upward, and the correlation coefficient (0.48) confirms a moderate-to-strong positive relationship.
+
+---
+
+### 2. Volatile Acidity vs Wine Quality
+![Volatile Acidity vs Quality](images/volatile_acidity_vs_quality.png)
+
+This boxplot shows that higher quality wines consistently have lower volatile acidity. The correlation coefficient of -0.39 confirms a statistically significant negative relationship.
+
+---
+
+### 3. Sulphates vs Wine Quality
+![Sulphates vs Quality](images/sulphates_vs_quality.png)
+
+Sulphates have a mild positive correlation (0.25) with wine quality. Higher sulphates may help preserve wine and slightly improve taste, which is reflected in the quality scores.
+
