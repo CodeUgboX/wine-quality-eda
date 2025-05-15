@@ -153,6 +153,8 @@ cor.test(red_wine$alcohol, red_wine$quality)
     ##       cor 
     ## 0.4761663
 
+    ![Alcohol vs Quality](images/alcohol_vs_quality.png) 
+
 This analysis explores whether alcohol content is associated with higher wine quality. The scatter plot shows a positive trend, and the linear regression line reinforces that higher alcohol levels may be linked to better quality ratings.
 
 The correlation test quantifies this relationship. If the p-value is very small (typically \< 0.05), the correlation is statistically significant.
