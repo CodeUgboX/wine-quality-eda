@@ -132,6 +132,10 @@ ggplot(red_wine, aes(x = alcohol, y = quality)) +
   labs(title = "Alcohol vs. Wine Quality",
        x = "Alcohol Content (%)",
        y = "Quality Score")
+
+### 1. Alcohol vs Wine Quality
+![Alcohol vs Quality](images/alcohol_vs_quality.png) 
+
 ```
 
 ![](CapstoneWineEDA_files/figure-gfm/alcohol-vs-quality-1.png)<!-- -->
@@ -153,6 +157,11 @@ cor.test(red_wine$alcohol, red_wine$quality)
     ##       cor 
     ## 0.4761663
 
+
+### 1. Alcohol vs Wine Quality
+![Alcohol vs Quality](images/alcohol_vs_quality.png)
+
+Higher alcohol content is clearly associated with higher quality scores. The trend is upward, and the correlation coefficient (0.48) confirms a moderate-to-strong positive relationship.
 
 This analysis explores whether alcohol content is associated with higher wine quality. The scatter plot shows a positive trend, and the linear regression line reinforces that higher alcohol levels may be linked to better quality ratings.
 
@@ -185,6 +194,10 @@ cor.test(red_wine$volatile.acidity, red_wine$quality)
     ## sample estimates:
     ##        cor 
     ## -0.3905578
+
+![Volatile Acidity vs Quality](images/Volatile_acidity_vs_Wine_quality.png)
+
+This boxplot shows that higher quality wines consistently have lower volatile acidity. The correlation coefficient of -0.39 confirms a statistically significant negative relationship.
 
 This hypothesis tests whether lower volatile acidity is associated with higher wine quality. The boxplot shows the distribution of volatile acidity for each quality score. Visually, we expect to see lower acidity in higher-rated wines.
 
@@ -219,6 +232,11 @@ cor.test(red_wine$sulphates, red_wine$quality)
     ## sample estimates:
     ##       cor 
     ## 0.2513971
+
+### 3. Sulphates vs Wine Quality
+![Sulphates vs Quality](images/sulphates_vs_quality.png)
+
+Sulphates have a mild positive correlation (0.25) with wine quality. Higher sulphates may help preserve wine and slightly improve taste, which is reflected in the quality scores.
 
 Sulphates are compounds that help preserve wine and can impact aroma. This hypothesis tests whether higher sulphate levels correlate with better wine quality. The boxplot should reveal whether higher-rated wines have more sulphates.
 
@@ -319,7 +337,8 @@ Higher alcohol content is clearly associated with higher quality scores. The tre
 ---
 
 ### 2. Volatile Acidity vs Wine Quality
-![Volatile Acidity vs Quality](images/volatile_acidity_vs_quality.png)
+![Volatile Acidity vs Quality](images/Volatile_acidity_vs_Wine_quality.png)
+
 
 This boxplot shows that higher quality wines consistently have lower volatile acidity. The correlation coefficient of -0.39 confirms a statistically significant negative relationship.
 
