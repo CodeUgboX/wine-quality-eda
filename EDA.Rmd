@@ -1,0 +1,472 @@
+---
+title: "Chemical Determinants of Wine Quality: A Data-Driven Analysis Using the UCI Wine Dataset"
+Author: "Maurice Otieno, Wanos Bahiru, Biose Ugbo"
+output:  
+  github_document: 
+    pandoc_args: ["--wrap=none"]
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+if (!require("tidyverse")) install.packages("tidyverse")
+if (!require("kableExtra")) install.packages("kableExtra")
+if (!require("here")) install.packages("here")
+
+library(tidyverse)
+library(kableExtra)
+library(here)
+```
+
+## 1. Business Understanding
+
+In this project, the objective is to identify the chemical characteristics that influence wine quality. A wine producer has asked for help in understanding what factors contribute to a good quality wine, using data from the UCI Wine Quality Dataset. Wine quality is typically assessed by trained sensory analysts and can depend on several chemical features such as acidity, alcohol content, sugar levels, and sulfur dioxide levels.
+
+Based on background research and intuition, I hypothesize that features like higher alcohol content and balanced acidity levels may correlate positively with better wine quality. On the other hand, extremely high levels of certain components like sulfur dioxide may negatively affect taste and thus reduce quality. Through exploratory data analysis and statistical testing, I aim to extract non-obvious insights about what makes a wine “good” or “bad” according to the dataset.
+
+## 2. Data Understanding
+This analysis is based on the UCI Wine Quality Data Set, which provides physicochemical and quality-related attributes for red and white variants of Portuguese "Vinho Verde" wine. The dataset includes chemical measurements such as alcohol, acidity, sugar, and sulfur dioxide levels, along with quality scores assigned by trained sensory panels. It was accessed from the UCI Machine Learning Repository, a widely used source for open datasets in applied machine learning and data science research.
+You can find the dataset here:[UCI Wine Quality Data Set](https://archive.ics.uci.edu/ml/datasets/wine+quality).
+
+
+Next we load the red wine dataset and explore its structure.
+The red and white wine datasets from the UCI Wine Quality Data Set were first loaded separately and then combined into a single dataset with an added type column to indicate wine variety. Initial inspection showed that the data contained no missing values and all variables were already numeric, eliminating the need for imputation or type conversion. The quality variable, which represents the wine's rating by sensory analysts, was preserved in both numeric form (for correlation analysis) and as an ordered factor (for boxplots and group comparisons). No outliers were removed, as visual inspections of distributions indicated that extreme values were within realistic chemical ranges. Overall, the dataset required minimal cleaning and was ready for analysis after labeling, verification, and structure alignment.
+```{r Table1, echo=FALSE, message=FALSE, fig.align='center', fig.path="figures/"}
+library(gridExtra)
+library(grid)
+
+# Load the red and white wine datasets again
+red_wine <- read.csv("winequality-red.csv", sep = ";")
+white_wine <- read.csv("winequality-white.csv", sep = ";")
+
+# Ensure output folder exists
+if (!dir.exists("figures")) dir.create("figures")
+
+# Column names and descriptions
+col_names <- colnames(red_wine)
+descriptions <- c(
+  "Fixed acidity: Tartaric acid concentration (g/dm^3)",
+  "Volatile acidity: Acetic acid (vinegar-like) concentration (g/dm^3)",
+  "Citric acid: Citric acid concentration (g/dm^3), adds freshness and flavor",
+  "Residual sugar: Amount of sugar left after fermentation (g/dm^3)",
+  "Chlorides: Salt content (sodium chloride) (g/dm^3)",
+  "Free sulfur dioxide: Free SO2 protects wine from oxidation and microbes (mg/dm^3)",
+  "Total sulfur dioxide: Total SO2 including bound and free forms (mg/dm^3)",
+  "Density: Density of wine, related to sugar and alcohol (g/cm^3)",
+  "pH: Acidity level; lower pH means more acidic",
+  "Sulphates: Added for microbial stability (g/dm^3)",
+  "Alcohol: Alcohol content (% vol)",
+  "Quality: Quality score (0–10) rated by wine tasters"
+)
+
+# Build data frame
+feature_info <- data.frame(
+  Feature = col_names,
+  Description = enc2utf8(descriptions),
+  stringsAsFactors = FALSE
+)
+
+# Wrap long text in Description
+wrap_text <- function(x, width = 50) {
+  sapply(x, function(y) paste(strwrap(y, width = width), collapse = "\n"))
+}
+feature_info$Description <- wrap_text(feature_info$Description)
+
+# Create table
+table <- tableGrob(feature_info, rows = NULL)
+
+# Color first column
+for (i in seq_len(nrow(feature_info))) {
+  table$grobs[table$layout$t == i + 1 & table$layout$l == 1][[1]]$gp <- gpar(fill = "#e6f2ff", fontsize = 9)
+}
+
+# Set column widths
+table$widths <- unit(c(0.35, 0.65), "npc")
+
+# Set font size throughout
+for (i in seq_along(table$grobs)) {
+  g <- table$grobs[[i]]
+  if (inherits(g, "text")) g$gp <- gpar(fontsize = 9)
+  table$grobs[[i]] <- g
+}
+
+# Draw the table inline
+grid.newpage()
+grid.draw(table)
+
+```
+
+```{r Table2, echo=FALSE, message=FALSE, fig.align='left'}
+library(gridExtra)
+library(grid)
+
+# Ensure 'figures/' directory exists
+if (!dir.exists("figures")) dir.create("figures")
+
+# Define features (assumes red_wine is loaded)
+col_names <- colnames(red_wine)
+
+# Levels of measurement
+levels <- c(
+  "Ratio", "Ratio", "Ratio", "Ratio", "Ratio", "Ratio",
+  "Ratio", "Ratio", "Ratio", "Ratio", "Ratio", "Ordinal"
+)
+
+# Create labeled data frame
+feature_info <- data.frame(
+  Feature = col_names,
+  Category = levels,
+  stringsAsFactors = FALSE
+)
+
+# Generate table with column headers
+wine_table <- tableGrob(feature_info)
+
+# Style all cells with light blue background
+light_blue <- gpar(fill = "#e6f2ff", col = NA)
+for (i in seq_len(nrow(wine_table$layout))) {
+  l <- wine_table$layout[i, ]
+  if (l$name == "core-fg") next
+  wine_table$grobs[[i]]$gp <- light_blue
+}
+
+# Display the table
+grid.newpage()
+grid.draw(wine_table)
+```
+
+ The columns of the wine dataset represent a mix of physicochemical properties and a sensory-based quality score. Most features, such as fixed acidity, volatile acidity, citric acid, residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide, density, pH, sulphates, and alcohol, are continuous numerical variables measured on a ratio scale. These values have a true zero and support meaningful arithmetic operations, making them suitable for statistical modeling and correlation analysis. The final column, quality, is a subjective score assigned by wine tasters on a scale from 0 to 10. This variable is ordinal, as it reflects a ranked assessment of wine quality but does not guarantee equal intervals between score values.
+
+```{r Table3, echo=FALSE, message=FALSE, fig.align='center'}
+library(gridExtra)
+library(grid)
+library(gtable)
+
+sample_data <- head(red_wine, 10)
+
+my_theme <- ttheme_default(
+  core = list(fg_params = list(fontsize = 8)),
+  colhead = list(
+    fg_params = list(col = "white", fontface = "bold", fontsize = 9),
+    bg_params = list(fill = "steelblue")
+  )
+)
+
+wine_table <- tableGrob(sample_data, rows = NULL, theme = my_theme)
+
+title <- textGrob("Red Wine Quality Dataset (First 10 Rows)",
+                  gp = gpar(fontsize = 12, fontface = "bold"))
+title_grob <- gtable_row("title", list(title), height = grobHeight(title) + unit(2, "mm"))
+
+full_table <- gtable_add_rows(wine_table, heights = title_grob$heights, pos = 0)
+full_table <- gtable_add_grob(full_table, grobs = title, t = 1, l = 1, r = ncol(full_table))
+
+grid.newpage()
+grid.draw(full_table)
+```
+For white whine , we can visualize the first few enties
+
+```{r Table4, echo=FALSE, message=FALSE, fig.align='center'}
+library(gridExtra)
+library(grid)
+library(gtable)
+
+sample_data <- head(white_wine, 10)
+
+my_theme <- ttheme_default(
+  core = list(fg_params = list(fontsize = 8)),
+  colhead = list(
+    fg_params = list(col = "white", fontface = "bold", fontsize = 9),
+    bg_params = list(fill = "steelblue")
+  )
+)
+
+wine_table <- tableGrob(sample_data, rows = NULL, theme = my_theme)
+
+title <- textGrob("White Wine Quality Dataset (First 10 Rows)",
+                  gp = gpar(fontsize = 12, fontface = "bold"))
+title_grob <- gtable_row("title", list(title), height = grobHeight(title) + unit(2, "mm"))
+
+full_table <- gtable_add_rows(wine_table, heights = title_grob$heights, pos = 0)
+full_table <- gtable_add_grob(full_table, grobs = title, t = 1, l = 1, r = ncol(full_table))
+
+grid.newpage()
+grid.draw(full_table)
+# Fix clipping by auto-resizing column widths
+table$widths <- unit(rep(10, ncol(table)), "null")
+```
+
+## 3. Exploratory Data Analysis
+
+From the full set of chemical features in the wine dataset, five were selected for focused analysis: alcohol, volatile acidity, sulphates, residual sugar, and pH. These features were chosen based on a combination of domain relevance, hypothesized impact on sensory perception, and statistical potential to influence quality. Alcohol and volatile acidity are well-known to directly affect aroma, balance, and taste, making them primary suspects in driving wine ratings. Sulphates play a key role in preservation and microbial stability, especially important in white wines. Residual sugar and pH, while more stylistic, influence sweetness and acidity—two central elements in the overall flavor profile.
+
+To explore and compare the red and white wine datasets, we begin by posing several guiding questions and hypotheses. Alcohol is a key factor in determining the body and perceived strength of wine, and different fermentation practices or grape varietals could result in differences in alcohol levels. A histogram allows us to visualize the shape, central tendency, and spread of alcohol content within each wine type, helping us assess whether there is a notable difference in average alcohol levels or variability between red and white wines. We assume that White wines have a higher average alcohol content than red wines.
+
+```{r histo1, echo=FALSE, message=FALSE, fig.align='center' }
+library(ggplot2)
+library(dplyr)
+
+# Tag datasets with type
+red_wine$type <- "Red"
+white_wine$type <- "White"
+
+# Combine
+wine_combined <- bind_rows(red_wine, white_wine)
+```
+```{r Hist_Alcohol, echo=FALSE, fig.align='center'}
+ggplot(wine_combined, aes(x = alcohol, fill = type)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
+  facet_wrap(~ type) +
+  labs(title = "Distribution of Alcohol Content", x = "Alcohol (%)", y = "Count") +
+  theme_minimal()
+```
+The distribution of alcohol content differs noticeably between red and white wines. White wines tend to have a wider range and slightly higher average alcohol levels, often peaking around 10.5% to 11.5%, while red wines cluster more tightly around 9.5% to 10.5%. Both distributions are right-skewed, meaning that a small number of wines have significantly higher alcohol content than the average. This suggests that while most wines fall within a moderate alcohol range, white wines are more likely to include higher-alcohol varieties, which may influence perceived sweetness and quality.
+
+Next lets look at the distribution of ph levels.Since acidity plays a significant role in wine freshness and microbial stability, and white wines are typically crafted to retain more acidity, we expect them to have a lower pH. The histogram helps us determine whether pH is a useful discriminating factor between red and white wines, and whether the differences in acidity are substantial enough to consider in quality evaluation or classification.
+```{r Hist_pH, echo=FALSE, fig.align='center'}
+ggplot(wine_combined, aes(x = pH, fill = type)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30) +
+  facet_wrap(~ type) +
+  labs(title = "Distribution of pH Levels", x = "pH", y = "Count") +
+  theme_minimal()
+```
+The distribution of pH values reveals notable differences between red and white wines. White wines generally exhibit lower pH values, indicating higher acidity, with the bulk of observations falling between 3.0 and 3.3. In contrast, red wines tend to have higher pH values, mostly in the range of 3.3 to 3.5, reflecting lower acidity. Both distributions are relatively unimodal and slightly skewed left, though white wine pH has a sharper peak, suggesting more consistency in acidity levels. These pH differences align with winemaking practices: white wines are often preserved with higher acidity for freshness, while red wines undergo longer fermentation and aging, allowing for a higher pH. 
+
+Another important factor is the resudual sugar distribution.Residual sugar affects the sweetness and mouthfeel of wine. By plotting a histogram of residual sugar, we aim to test whether white wines tend to be sweeter — either by design (e.g., producing off-dry styles) or due to fermentation control. This plot helps visualize skewness (especially in white wines), identify outliers, and compare sugar levels between the two types. 
+```{r Hist_ResidualSugar, echo=FALSE, fig.align='center'}
+ggplot(wine_combined, aes(x = residual.sugar, fill = type)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 40) +
+  facet_wrap(~ type, scales = "free_y") +
+  labs(title = "Distribution of Residual Sugar", x = "Residual Sugar (g/dm³)", y = "Count") +
+  theme_minimal()
+```
+The distribution of residual sugar is markedly different between red and white wines. White wines exhibit a wider and more positively skewed distribution, with most values clustered between 1 and 6 g/dm³, but with a long right tail extending beyond 20 g/dm³. This suggests that some white wines retain significant sweetness, which may reflect stylistic choices such as producing off-dry or semi-sweet varieties. In contrast, red wines have a tighter, more symmetrical distribution, mostly concentrated below 4 g/dm³, indicating drier profiles with less residual sugar overall. The presence of high-sugar outliers in white wines may influence perceptions of sweetness and balance, and could also affect correlations with density, alcohol, and quality. 
+
+```{r Hist_VolatileAcidity, echo=FALSE, fig.align='center'}
+# Add wine type labels
+red_wine$type <- "Red"
+white_wine$type <- "White"
+wine_combined <- bind_rows(red_wine, white_wine)
+
+# Generate plot with valid UTF-8 encoding in labels
+ggplot(wine_combined, aes(x = volatile.acidity, fill = type)) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 30, color = "black") +
+  facet_wrap(~ type) +
+  labs(
+    title = "Distribution of Volatile Acidity by Wine Type",
+    x = enc2utf8("Volatile Acidity (g/dm³)"),
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = "none"
+  )
+```
+```{r Hist_Sulphates, echo=FALSE, message=FALSE, fig.align='center'}
+library(ggplot2)
+library(dplyr)
+
+# Ensure type labels and combined dataset exist
+red_wine$type <- "Red"
+white_wine$type <- "White"
+wine_combined <- bind_rows(red_wine, white_wine)
+
+# Plot histogram of sulphates
+ggplot(wine_combined, aes(x = sulphates, fill = type)) +
+  geom_histogram(alpha = 0.6, bins = 30, position = "identity", color = "black") +
+  facet_wrap(~ type, scales = "free_y") +
+  labs(
+    title = "Distribution of Sulphates in Red and White Wines",
+    x = "Sulphates (g/dm³)",
+    y = "Count"
+  ) +
+  theme_minimal()
+```
+Sulphates play a critical role in winemaking as preservatives that help prevent oxidation and microbial spoilage, which can directly affect wine stability and shelf life. Because of this, we are interested in understanding how sulphate concentrations vary between red and white wines. Our hypothesis is that white wines contain higher levels of sulphates than red wines, due to their increased sensitivity to spoilage and the need for freshness preservation. To test this, we use a histogram, which allows us to examine the full distribution of sulphate levels across both wine types,
+The histogram shows that white wines generally have higher sulphate concentrations than red wines, with peaks around 0.5 to 0.6 g/dm³. In contrast, red wines tend to cluster around lower sulphate values, typically between 0.3 and 0.5 g/dm³. This suggests that sulphates are used more intensively in white wines, likely due to their role in preserving freshness and microbial stability, which are more critical in lighter, more delicate wine styles.
+```{r Boxplot_Quality, echo=FALSE, message=FALSE, fig.align='center'}
+library(ggplot2)
+library(dplyr)
+
+# Label wine type and combine
+red_wine$type <- "Red"
+white_wine$type <- "White"
+wine_combined <- bind_rows(red_wine, white_wine)
+
+# Convert quality to a factor for boxplot grouping
+wine_combined$quality <- as.factor(wine_combined$quality)
+
+# Plot boxplot of quality grouped by wine type
+ggplot(wine_combined, aes(x = type, y = as.numeric(as.character(quality)), fill = type)) +
+  geom_boxplot(width = 0.5, outlier.shape = 16, outlier.size = 2, alpha = 0.7) +
+  labs(
+    title = "Box Plot of Wine Quality Scores by Type",
+    x = "Wine Type",
+    y = "Quality Score (0–10)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = "none"
+  )
+```
+The box plot comparing wine quality scores for red and white wines reveals subtle but meaningful differences. Both types have quality ratings that generally range from 3 to 8, but white wines show a slightly higher median score and a narrower interquartile range (IQR), suggesting more consistency in quality. Red wines, while overlapping in score range, display greater variability and more visible outliers on the lower end, indicating occasional lower-quality batches.
+
+To better understand what influences the perceived quality of wine, it is essential to examine how key chemical properties relate to wine quality scores. Variables such as alcohol content, volatile acidity, sulphates, and residual sugar are known to impact the sensory profile and overall acceptability of wine. By analyzing their correlation with quality, we aim to identify which factors most strongly predict or affect wine quality, and whether these relationships differ between red and white wine. These insights not only inform our statistical modeling strategies but also deepen our understanding of the underlying chemistry that distinguishes higher-quality wines from lower-rated ones.
+
+```{r Correlation_Boxplots_All, echo=FALSE, message=FALSE, fig.align='center'}
+library(ggplot2)
+library(dplyr)
+
+# Prepare and combine data
+red_wine$type <- "Red"
+white_wine$type <- "White"
+wine_combined <- bind_rows(red_wine, white_wine)
+
+# Convert quality to ordered factor
+wine_combined$quality_factor <- factor(wine_combined$quality, ordered = TRUE)
+
+# Alcohol vs Quality
+ggplot(wine_combined, aes(x = quality_factor, y = alcohol, fill = type)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = 16, outlier.size = 1.5) +
+  labs(title = "Alcohol by Quality Score", x = "Quality", y = "Alcohol (%)") +
+  theme_minimal()
+
+# Volatile Acidity vs Quality
+ggplot(wine_combined, aes(x = quality_factor, y = volatile.acidity, fill = type)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = 16, outlier.size = 1.5) +
+  labs(title = "Volatile Acidity by Quality Score", x = "Quality", y = "Volatile Acidity (g/dm³)") +
+  theme_minimal()
+
+# Sulphates vs Quality
+ggplot(wine_combined, aes(x = quality_factor, y = sulphates, fill = type)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = 16, outlier.size = 1.5) +
+  labs(title = "Sulphates by Quality Score", x = "Quality", y = "Sulphates (g/dm³)") +
+  theme_minimal()
+
+# Residual Sugar vs Quality
+ggplot(wine_combined, aes(x = quality_factor, y = residual.sugar, fill = type)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = 16, outlier.size = 1.5) +
+  labs(title = "Residual Sugar by Quality Score", x = "Quality", y = "Residual Sugar (g/dm³)") +
+  theme_minimal()
+
+# pH vs Quality (new plot)
+ggplot(wine_combined, aes(x = quality_factor, y = pH, fill = type)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = 16, outlier.size = 1.5) +
+  labs(title = "pH by Quality Score", x = "Quality", y = "pH") +
+  theme_minimal()
+```
+The boxplotS show a positive relationship between alcohol content and quality for both red and white wines. Higher quality scores are associated with higher median alcohol levels, particularly evident in white wines. This suggests that alcohol is a strong indicator of quality, likely because it reflects better fermentation control and riper grapes.They also reveal  a slight negative trend for pH, where higher-quality wines tend to have slightly lower pH values, indicating more acidity. This pattern is more evident in white wines, which are generally more acidic. However, the relationship is relatively weak, suggesting pH alone is not a strong determinant of perceived quality.
+
+Sulphates show a mild positive trend with quality, with slightly higher values seen in better-rated wines. The relationship is more visible in white wines, where higher quality levels have increased sulphate concentrations. This could suggest that sulphates, which act as preservatives, may contribute to improved stability and quality perception.
+
+There is a negative association between volatile acidity and quality, especially for red wines. Wines with lower quality scores tend to have higher volatile acidity, which decreases steadily as quality improves. This supports the idea that high volatile acidity — often linked to spoilage — negatively impacts the sensory appeal of wine.
+The relationship between residual sugar and quality is less clear and inconsistent across wine types. White wines display more variation in sugar levels, but high residual sugar does not consistently align with high or low quality scores. This indicates that residual sugar is not a strong standalone predictor of wine quality and may reflect stylistic preferences rather than objective quality.
+
+Lets run some statistical test on our data.  Most of our data is not normally distributed but let's run a shapiro-wilk test to prove this.
+```{r Normality_Test_Shapiro, echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+# Combine and define features to test
+red_wine$type <- "Red"
+white_wine$type <- "White"
+features <- c("alcohol", "volatile.acidity", "sulphates", "residual.sugar", "pH")
+
+# Initialize result table
+normality_results <- data.frame(
+  Feature = features,
+  Shapiro_Red_p = NA,
+  Shapiro_White_p = NA
+)
+
+# Perform Shapiro-Wilk test (limit to 5000 rows to avoid errors)
+for (i in seq_along(features)) {
+  feat <- features[i]
+  red_vals <- red_wine[[feat]]
+  white_vals <- white_wine[[feat]]
+  
+  # Limit to first 5000 values if large
+  red_sample <- if (length(red_vals) > 5000) red_vals[1:5000] else red_vals
+  white_sample <- if (length(white_vals) > 5000) white_vals[1:5000] else white_vals
+
+  # Suppress warnings and run tests
+  shapiro_red <- suppressWarnings(shapiro.test(red_sample))
+  shapiro_white <- suppressWarnings(shapiro.test(white_sample))
+
+  # Store p-values
+  normality_results$Shapiro_Red_p[i] <- round(shapiro_red$p.value, 4)
+  normality_results$Shapiro_White_p[i] <- round(shapiro_white$p.value, 4)
+}
+
+# Display result table
+normality_results %>%
+  kbl(caption = "Shapiro-Wilk Normality Test for Red and White Wine Features") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+The Shapiro-Wilk normality tests revealed that most of the selected chemical features—such as volatile acidity, residual sugar, and sulphates—deviate significantly from a normal distribution in at least one of the wine types, as indicated by p-values below 0.05. These results suggest the  use of non-parametric test  like the Kendall's rank correlation test.
+
+
+
+```{r Kendall_Correlation_Test, echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+# Combine datasets
+red_wine$type <- "Red"
+white_wine$type <- "White"
+wine_combined <- bind_rows(red_wine, white_wine)
+
+# Define features to test
+features <- c("alcohol", "volatile.acidity", "sulphates", "residual.sugar", "pH")
+
+# Initialize results table
+kendall_results <- data.frame(
+  Feature = features,
+  Kendall_tau = NA,
+  Kendall_p = NA
+)
+
+# Loop through features and compute Kendall's tau correlation
+for (i in seq_along(features)) {
+  feat <- features[i]
+  x <- wine_combined[[feat]]
+  y <- wine_combined$quality
+  
+  kendall <- suppressWarnings(tryCatch(cor.test(x, y, method = "kendall"), error = function(e) NA))
+  
+  kendall_results$Kendall_tau[i] <- if (!inherits(kendall, "try-error")) round(kendall$estimate, 4) else NA
+  kendall_results$Kendall_p[i]   <- if (!inherits(kendall, "try-error")) round(kendall$p.value, 4) else NA
+}
+
+# Display the results
+kendall_results %>%
+  kbl(caption = "Kendall’s Rank Correlation Test Between Wine Features and Quality") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+The Kendall’s rank correlation test revealed that among the five chemical features tested, alcohol content had the strongest positive association with wine quality, indicating that as alcohol levels increase, so does the likelihood of receiving a higher quality rating. This finding reinforces previous insights from Spearman correlation and boxplots, confirming that alcohol is a key predictor of wine quality across both red and white wines. Sulphates also showed a modest but statistically significant positive relationship with quality, suggesting that controlled use of sulphur compounds may contribute positively to sensory perception, particularly by preserving freshness.
+
+On the other hand, volatile acidity exhibited a negative correlation with wine quality, consistent with the idea that higher levels—often linked to spoilage—diminish a wine's appeal. The relationships for residual sugar and pH were weaker and less consistent, indicating that these features, while chemically important, do not have a strong monotonic influence on how quality is rated by sensory analysts. Overall, Kendall’s tau helped confirm the direction and significance of key quality-related trends, particularly in cases where data contained ties or skewness, making it a robust complement to the other non-parametric tests used in this study.
+
+## 4. FINDINGS
+The results of our analysis highlight several chemical properties that are meaningfully associated with wine quality, as rated by trained sensory analysts. Among these, alcohol content demonstrated the strongest positive correlation with quality based on Kendall’s rank correlation test, confirming that wines with higher alcohol levels tend to receive better quality scores. This supports the hypothesis that alcohol, as a marker of fermentation completeness and grape ripeness, plays a central role in shaping a wine's perceived strength and balance. Sulphates also showed a modest but statistically significant positive relationship with quality, suggesting that when used in controlled amounts, they can contribute to wine stability and preservation without negatively affecting taste.
+
+Conversely, volatile acidity was negatively correlated with quality, reinforcing its role as a spoilage indicator that detracts from overall flavor and aroma. The results for residual sugar and pH showed only weak correlations, indicating that these factors are more related to stylistic variation than to perceived quality. The use of Kendall’s tau was especially valuable in this context, as it provided a robust non-parametric measure of association that accounts for ties and non-linear relationships within the data. Overall, the findings confirm that alcohol, volatile acidity, and sulphates are the most influential chemical properties in determining wine quality in this dataset.
+
+## 5.  DEPLOYMENT
+For a wine business starting out, these findings provide a clear, evidence-based strategy for improving product quality, optimizing production, and building a competitive brand. The analysis shows that alcohol content is one of the strongest predictors of wine quality, so the business should prioritize controlling fermentation processes to ensure wines consistently reach the optimal alcohol range. At the same time, volatile acidity must be carefully managed, as high levels are associated with lower quality scores. This requires investment in clean fermentation practices and routine chemical monitoring.
+
+Sulphates, when used appropriately, serve as effective preservatives that can enhance freshness and contribute positively to perceived quality—particularly in white wines. Therefore, managing sulphate levels within a favorable range can improve shelf-life without compromising taste. While residual sugar and pH are less directly tied to quality scores, they are valuable in shaping the stylistic profile of wines and can be adjusted to suit consumer preferences or brand positioning.
+
+
+
+
+
+
+
