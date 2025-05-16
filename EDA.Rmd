@@ -1,6 +1,6 @@
 ---
 title: "Chemical Determinants of Wine Quality: A Data-Driven Analysis Using the UCI Wine Dataset"
-Author: "Maurice Otieno, Wanos Bahiru, Biose Ugbo"
+author: "Maurice Otieno, Wanos Bahiru, Biose Ugbo"
 output:  
   github_document: 
     pandoc_args: ["--wrap=none"]
@@ -16,6 +16,10 @@ if (!require("kableExtra")) install.packages("kableExtra")
 if (!require("here")) install.packages("here")
 
 library(tidyverse)
+library(dplyr)
+library(knitr)
+library(tibble)
+library(gridExtra)
 library(kableExtra)
 library(here)
 ```
@@ -24,179 +28,94 @@ library(here)
 
 In this project, the objective is to identify the chemical characteristics that influence wine quality. A wine producer has asked for help in understanding what factors contribute to a good quality wine, using data from the UCI Wine Quality Dataset. Wine quality is typically assessed by trained sensory analysts and can depend on several chemical features such as acidity, alcohol content, sugar levels, and sulfur dioxide levels.
 
-Based on background research and intuition, I hypothesize that features like higher alcohol content and balanced acidity levels may correlate positively with better wine quality. On the other hand, extremely high levels of certain components like sulfur dioxide may negatively affect taste and thus reduce quality. Through exploratory data analysis and statistical testing, I aim to extract non-obvious insights about what makes a wine “good” or “bad” according to the dataset.
+This analysis is based on the UCI Wine Quality Data Set, which provides physicochemical and quality-related attributes for red and white variants of Portuguese "Vinho Verde" wine. The dataset includes chemical measurements such as alcohol, acidity, sugar, and sulfur dioxide levels, along with quality scores assigned by trained sensory panels. It was accessed from the UCI Machine Learning Repository, a widely used source for open datasets in applied machine learning and data science research.
+You can find the dataset here:[UCI Wine Quality Data Set](https://archive.ics.uci.edu/ml/datasets/wine+quality). We also hosted some of the dataset  in our local github repository at [Exploratory_data_analysis](https://github.com/otienomaurice1/Exploratory_Data_Analysis.git) and can be downloaded as required.
+
+Based on background research and intuition, We hypothesize that features like higher alcohol content and balanced acidity levels may correlate positively with better wine quality. On the other hand, extremely high levels of certain components like sulfur dioxide may negatively affect taste and thus reduce quality. Through exploratory data analysis and statistical testing, I aim to extract non-obvious insights about what makes a wine “good” or “bad” according to the dataset.
 
 ## 2. Data Understanding
-This analysis is based on the UCI Wine Quality Data Set, which provides physicochemical and quality-related attributes for red and white variants of Portuguese "Vinho Verde" wine. The dataset includes chemical measurements such as alcohol, acidity, sugar, and sulfur dioxide levels, along with quality scores assigned by trained sensory panels. It was accessed from the UCI Machine Learning Repository, a widely used source for open datasets in applied machine learning and data science research.
-You can find the dataset here:[UCI Wine Quality Data Set](https://archive.ics.uci.edu/ml/datasets/wine+quality).
 
 
 Next we load the red wine dataset and explore its structure.
-The red and white wine datasets from the UCI Wine Quality Data Set were first loaded separately and then combined into a single dataset with an added type column to indicate wine variety. Initial inspection showed that the data contained no missing values and all variables were already numeric, eliminating the need for imputation or type conversion. The quality variable, which represents the wine's rating by sensory analysts, was preserved in both numeric form (for correlation analysis) and as an ordered factor (for boxplots and group comparisons). No outliers were removed, as visual inspections of distributions indicated that extreme values were within realistic chemical ranges. Overall, the dataset required minimal cleaning and was ready for analysis after labeling, verification, and structure alignment.
-```{r Table1, echo=FALSE, message=FALSE, fig.align='center', fig.path="figures/"}
-library(gridExtra)
-library(grid)
+The red and white wine datasets from the UCI Wine Quality Data Set were first loaded separately. Initial inspection showed that the data contained no missing values and all variables were already numeric, eliminating the need for imputation or type conversion. The quality variable, which represents the wine's rating by sensory analysts, was preserved in both numeric form (for correlation analysis) and as an ordered factor (for boxplots and group comparisons). No outliers were removed, as visual inspections of distributions indicated that extreme values were within realistic chemical ranges. Overall, the dataset required minimal cleaning and was ready for analysis after labeling, verification, and structure alignment.
 
-# Load the red and white wine datasets again
-red_wine <- read.csv("winequality-red.csv", sep = ";")
-white_wine <- read.csv("winequality-white.csv", sep = ";")
 
-# Ensure output folder exists
-if (!dir.exists("figures")) dir.create("figures")
+```{r Table1, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(dplyr)
+library(knitr)
+library(here)
+library(tibble)
 
-# Column names and descriptions
-col_names <- colnames(red_wine)
+# Updated URLs from the new repo (must use raw format)
+url <- "https://raw.githubusercontent.com/otienomaurice1/Exploratory_Data_Analysis/main/winequality-red.csv"
+red_wine <- read.csv(url, sep = ";")
+
+url_white <- "https://raw.githubusercontent.com/otienomaurice1/Exploratory_Data_Analysis/main/winequality-white.csv"
+white_wine<- read.csv(url_white, sep = ";")
+# --- Common Feature Metadata ---
+measurement_levels <- c(
+  "fixed.acidity" = "Ratio", "volatile.acidity" = "Ratio", "citric.acid" = "Ratio",
+  "residual.sugar" = "Ratio", "chlorides" = "Ratio", "free.sulfur.dioxide" = "Ratio",
+  "total.sulfur.dioxide" = "Ratio", "density" = "Ratio", "pH" = "Interval",
+  "sulphates" = "Ratio", "alcohol" = "Ratio", "quality" = "Ordinal"
+)
+
 descriptions <- c(
-  "Fixed acidity: Tartaric acid concentration (g/dm^3)",
-  "Volatile acidity: Acetic acid (vinegar-like) concentration (g/dm^3)",
-  "Citric acid: Citric acid concentration (g/dm^3), adds freshness and flavor",
-  "Residual sugar: Amount of sugar left after fermentation (g/dm^3)",
-  "Chlorides: Salt content (sodium chloride) (g/dm^3)",
-  "Free sulfur dioxide: Free SO2 protects wine from oxidation and microbes (mg/dm^3)",
-  "Total sulfur dioxide: Total SO2 including bound and free forms (mg/dm^3)",
-  "Density: Density of wine, related to sugar and alcohol (g/cm^3)",
-  "pH: Acidity level; lower pH means more acidic",
-  "Sulphates: Added for microbial stability (g/dm^3)",
-  "Alcohol: Alcohol content (% vol)",
-  "Quality: Quality score (0–10) rated by wine tasters"
+  "fixed.acidity" = "Tartaric acid concentration (g/dm^3)",
+  "volatile.acidity" = "Acetic acid (vinegar-like) concentration (g/dm^3)",
+  "citric.acid" = "Citric acid concentration (g/dm^3)",
+  "residual.sugar" = "Residual sugar left after fermentation (g/dm^3)",
+  "chlorides" = "Salt content (g/dm^3)",
+  "free.sulfur.dioxide" = "Free SO2 (mg/dm^3)",
+  "total.sulfur.dioxide" = "Total SO2 (mg/dm^3)",
+  "density" = "Wine density (g/cm^3)",
+  "pH" = "pH level of wine",
+  "sulphates" = "Sulphates for microbial stability (g/dm^3)",
+  "alcohol" = "Alcohol content (% vol)",
+  "quality" = "Taster-rated quality score (0–10)"
 )
 
-# Build data frame
-feature_info <- data.frame(
-  Feature = col_names,
-  Description = enc2utf8(descriptions),
-  stringsAsFactors = FALSE
+# --- Feature Info Table (Shared) ---
+feature_info <- tibble(
+  Feature = names(descriptions),
+  Type = sapply(red_wine[names(descriptions)], class),
+  Measurement_Level = measurement_levels[names(descriptions)],
+  Description = descriptions[names(descriptions)]
 )
 
-# Wrap long text in Description
-wrap_text <- function(x, width = 50) {
-  sapply(x, function(y) paste(strwrap(y, width = width), collapse = "\n"))
-}
-feature_info$Description <- wrap_text(feature_info$Description)
+cat("## Wine Feature Metadata\n")
+kable(feature_info, caption = "Feature Descriptions with Type and Measurement Level", align = 'l')
 
-# Create table
-table <- tableGrob(feature_info, rows = NULL)
-
-# Color first column
-for (i in seq_len(nrow(feature_info))) {
-  table$grobs[table$layout$t == i + 1 & table$layout$l == 1][[1]]$gp <- gpar(fill = "#e6f2ff", fontsize = 9)
-}
-
-# Set column widths
-table$widths <- unit(c(0.35, 0.65), "npc")
-
-# Set font size throughout
-for (i in seq_along(table$grobs)) {
-  g <- table$grobs[[i]]
-  if (inherits(g, "text")) g$gp <- gpar(fontsize = 9)
-  table$grobs[[i]] <- g
-}
-
-# Draw the table inline
-grid.newpage()
-grid.draw(table)
-
-```
-
-```{r Table2, echo=FALSE, message=FALSE, fig.align='left'}
-library(gridExtra)
-library(grid)
-
-# Ensure 'figures/' directory exists
-if (!dir.exists("figures")) dir.create("figures")
-
-# Define features (assumes red_wine is loaded)
-col_names <- colnames(red_wine)
-
-# Levels of measurement
-levels <- c(
-  "Ratio", "Ratio", "Ratio", "Ratio", "Ratio", "Ratio",
-  "Ratio", "Ratio", "Ratio", "Ratio", "Ratio", "Ordinal"
-)
-
-# Create labeled data frame
-feature_info <- data.frame(
-  Feature = col_names,
-  Category = levels,
-  stringsAsFactors = FALSE
-)
-
-# Generate table with column headers
-wine_table <- tableGrob(feature_info)
-
-# Style all cells with light blue background
-light_blue <- gpar(fill = "#e6f2ff", col = NA)
-for (i in seq_len(nrow(wine_table$layout))) {
-  l <- wine_table$layout[i, ]
-  if (l$name == "core-fg") next
-  wine_table$grobs[[i]]$gp <- light_blue
-}
-
-# Display the table
-grid.newpage()
-grid.draw(wine_table)
-```
-
- The columns of the wine dataset represent a mix of physicochemical properties and a sensory-based quality score. Most features, such as fixed acidity, volatile acidity, citric acid, residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide, density, pH, sulphates, and alcohol, are continuous numerical variables measured on a ratio scale. These values have a true zero and support meaningful arithmetic operations, making them suitable for statistical modeling and correlation analysis. The final column, quality, is a subjective score assigned by wine tasters on a scale from 0 to 10. This variable is ordinal, as it reflects a ranked assessment of wine quality but does not guarantee equal intervals between score values.
-
-```{r Table3, echo=FALSE, message=FALSE, fig.align='center'}
-library(gridExtra)
-library(grid)
-library(gtable)
-
-sample_data <- head(red_wine, 10)
-
-my_theme <- ttheme_default(
-  core = list(fg_params = list(fontsize = 8)),
-  colhead = list(
-    fg_params = list(col = "white", fontface = "bold", fontsize = 9),
-    bg_params = list(fill = "steelblue")
+# --- Helper: Summary Statistics ---
+get_summary_table <- function(df) {
+  numeric_cols <- df %>% select(where(is.numeric))
+  tibble(
+    Feature = colnames(numeric_cols),
+    Count = sapply(numeric_cols, function(x) sum(!is.na(x))),
+    Mean = round(sapply(numeric_cols, mean), 3),
+    `1st Quartile` = round(sapply(numeric_cols, function(x) quantile(x, 0.25)), 3),
+    Median = round(sapply(numeric_cols, median), 3),
+    `3rd Quartile` = round(sapply(numeric_cols, function(x) quantile(x, 0.75)), 3),
+    Min = round(sapply(numeric_cols, min), 3),
+    Max = round(sapply(numeric_cols, max), 3)
   )
-)
+}
 
-wine_table <- tableGrob(sample_data, rows = NULL, theme = my_theme)
+# --- Red Wine Summary ---
+cat("\n## Red Wine Summary Statistics\n")
+kable(get_summary_table(red_wine), caption = "Red Wine Summary Statistics", align = 'r')
 
-title <- textGrob("Red Wine Quality Dataset (First 10 Rows)",
-                  gp = gpar(fontsize = 12, fontface = "bold"))
-title_grob <- gtable_row("title", list(title), height = grobHeight(title) + unit(2, "mm"))
-
-full_table <- gtable_add_rows(wine_table, heights = title_grob$heights, pos = 0)
-full_table <- gtable_add_grob(full_table, grobs = title, t = 1, l = 1, r = ncol(full_table))
-
-grid.newpage()
-grid.draw(full_table)
+# --- White Wine Summary ---
+cat("\n## White Wine Summary Statistics\n")
+kable(get_summary_table(white_wine), caption = "White Wine Summary Statistics", align = 'r')
 ```
-For white whine , we can visualize the first few enties
 
-```{r Table4, echo=FALSE, message=FALSE, fig.align='center'}
-library(gridExtra)
-library(grid)
-library(gtable)
 
-sample_data <- head(white_wine, 10)
 
-my_theme <- ttheme_default(
-  core = list(fg_params = list(fontsize = 8)),
-  colhead = list(
-    fg_params = list(col = "white", fontface = "bold", fontsize = 9),
-    bg_params = list(fill = "steelblue")
-  )
-)
+ The columns of the wine dataset represent a mix of physicochemical properties and a sensory-based quality score. Most features, such as fixed acidity, volatile acidity, citric acid, residual sugar, chlorides, free sulfur dioxide, total sulfur dioxide, density, pH, sulphates, and alcohol, are continuous numerical variables measured on a ratio scale. These values have a true zero and support meaningful arithmetic operations, making them suitable for statistical modeling and correlation analysis. The final row, quality, is a subjective score assigned by wine tasters on a scale from 0 to 10. This variable is ordinal, as it reflects a ranked assessment of wine quality but does not guarantee equal intervals between score values.
 
-wine_table <- tableGrob(sample_data, rows = NULL, theme = my_theme)
 
-title <- textGrob("White Wine Quality Dataset (First 10 Rows)",
-                  gp = gpar(fontsize = 12, fontface = "bold"))
-title_grob <- gtable_row("title", list(title), height = grobHeight(title) + unit(2, "mm"))
 
-full_table <- gtable_add_rows(wine_table, heights = title_grob$heights, pos = 0)
-full_table <- gtable_add_grob(full_table, grobs = title, t = 1, l = 1, r = ncol(full_table))
-
-grid.newpage()
-grid.draw(full_table)
-# Fix clipping by auto-resizing column widths
-table$widths <- unit(rep(10, ncol(table)), "null")
-```
 
 ## 3. Exploratory Data Analysis
 
@@ -463,10 +382,3 @@ Conversely, volatile acidity was negatively correlated with quality, reinforcing
 For a wine business starting out, these findings provide a clear, evidence-based strategy for improving product quality, optimizing production, and building a competitive brand. The analysis shows that alcohol content is one of the strongest predictors of wine quality, so the business should prioritize controlling fermentation processes to ensure wines consistently reach the optimal alcohol range. At the same time, volatile acidity must be carefully managed, as high levels are associated with lower quality scores. This requires investment in clean fermentation practices and routine chemical monitoring.
 
 Sulphates, when used appropriately, serve as effective preservatives that can enhance freshness and contribute positively to perceived quality—particularly in white wines. Therefore, managing sulphate levels within a favorable range can improve shelf-life without compromising taste. While residual sugar and pH are less directly tied to quality scores, they are valuable in shaping the stylistic profile of wines and can be adjusted to suit consumer preferences or brand positioning.
-
-
-
-
-
-
-
